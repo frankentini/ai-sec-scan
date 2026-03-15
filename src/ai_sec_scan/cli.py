@@ -43,6 +43,7 @@ _CONFIG_KEY_MAP = {
     "include": "include",
     "exclude": "exclude",
     "github_annotations": "github_annotations",
+    "dry_run": "dry_run",
 }
 
 
@@ -213,6 +214,12 @@ def version() -> None:
     default=False,
     help="Emit GitHub Actions workflow command annotations to stdout.",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="List files that would be scanned without running analysis.",
+)
 def scan(
     path: str,
     provider: str,
@@ -224,11 +231,30 @@ def scan(
     include: tuple[str, ...],
     exclude: tuple[str, ...],
     github_annotations: bool,
+    dry_run: bool,
 ) -> None:
     """Scan a file or directory for security vulnerabilities."""
-    from ai_sec_scan.scanner import run_scan_sync
+    from ai_sec_scan.scanner import collect_files, run_scan_sync
 
     target = Path(path)
+
+    if dry_run:
+        files = collect_files(
+            target,
+            include=list(include) if include else None,
+            exclude=list(exclude) if exclude else None,
+            max_file_size_kb=max_file_size,
+        )
+        console.print(f"[bold]ai-sec-scan[/bold] v{__version__} | dry run")
+        console.print(f"Target: {target.resolve()}\n")
+        if files:
+            for file_path in files:
+                rel = str(file_path.relative_to(target)) if target.is_dir() else file_path.name
+                click.echo(rel)
+            console.print(f"\n[green]{len(files)} file(s) would be scanned.[/green]")
+        else:
+            console.print("[yellow]No files match the current filters.[/yellow]")
+        return
 
     try:
         llm_provider = _get_provider(provider, model)

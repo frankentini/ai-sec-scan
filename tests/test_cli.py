@@ -91,6 +91,44 @@ def test_scan_loads_defaults_from_target_config(  # type: ignore[no-untyped-def]
     assert captured["min_severity"] == "high"
 
 
+def test_dry_run_lists_files(tmp_path: Path) -> None:
+    """--dry-run should list matching files without invoking any provider."""
+    (tmp_path / "app.py").write_text("x = 1", encoding="utf-8")
+    (tmp_path / "lib.js").write_text("var y", encoding="utf-8")
+    (tmp_path / "readme.txt").write_text("not code", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["scan", str(tmp_path), "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "app.py" in result.output
+    assert "lib.js" in result.output
+    assert "readme.txt" not in result.output
+    assert "file(s) would be scanned" in result.output
+
+
+def test_dry_run_respects_include(tmp_path: Path) -> None:
+    """--dry-run should honour --include filters."""
+    (tmp_path / "app.py").write_text("x = 1", encoding="utf-8")
+    (tmp_path / "lib.js").write_text("var y", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["scan", str(tmp_path), "--dry-run", "-i", "*.py"])
+
+    assert result.exit_code == 0
+    assert "app.py" in result.output
+    assert "lib.js" not in result.output
+
+
+def test_dry_run_empty(tmp_path: Path) -> None:
+    """--dry-run on an empty directory should report no files."""
+    runner = CliRunner()
+    result = runner.invoke(main, ["scan", str(tmp_path), "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "No files match" in result.output
+
+
 def test_cli_flags_override_config(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     runner = CliRunner()
     captured: dict[str, object] = {}
