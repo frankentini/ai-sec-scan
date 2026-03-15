@@ -1,0 +1,6 @@
+- id: ai-sec-scan
+  name: ai-sec-scan
+  description: Scan changed Python files for security vulnerabilities.
+  entry: bash -c 'for file in "$@"; do ai-sec-scan scan "$file" || exit 1; done' --
+  language: python
+  types: [python]

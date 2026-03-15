@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-sec-scan"
-version = "0.1.0"
+version = "0.2.0"
 description = "AI-powered security scanner for source code"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "Chris Drake", email = "chris@thedrakegroup.com" },
+    { name = "Chris Drake", email = "frankentini@users.noreply.github.com" },
 ]
 keywords = ["security", "scanner", "ai", "sast", "code-analysis"]
 classifiers = [
@@ -31,6 +31,7 @@ dependencies = [
     "click>=8.1",
     "rich>=13.0",
     "pydantic>=2.0",
+    "pyyaml>=6.0",
     "anthropic>=0.39",
     "openai>=1.50",
     "httpx>=0.27",

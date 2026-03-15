@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from ai_sec_scan.models import ScanResult, Severity
+from ai_sec_scan.models import Finding, ScanResult, Severity
 from ai_sec_scan.sarif import to_sarif_json
 
 console = Console()
@@ -89,3 +89,44 @@ def render_json(result: ScanResult) -> str:
 def render_sarif(result: ScanResult) -> str:
     """Render scan results as SARIF 2.1.0 JSON string."""
     return to_sarif_json(result)
+
+
+def _annotation_level(severity: Severity) -> str:
+    """Map severity to GitHub annotation level."""
+    if severity in {Severity.CRITICAL, Severity.HIGH}:
+        return "error"
+    return "warning"
+
+
+def _escape_command_property(value: str) -> str:
+    """Escape values used in GitHub Actions command properties."""
+    return (
+        value.replace("%", "%25")
+        .replace("\r", "%0D")
+        .replace("\n", "%0A")
+        .replace(":", "%3A")
+        .replace(",", "%2C")
+    )
+
+
+def _escape_command_message(value: str) -> str:
+    """Escape values used in GitHub Actions command message body."""
+    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
+def _to_github_annotation(finding: Finding) -> str:
+    """Format a finding as a GitHub workflow command annotation."""
+    level = _annotation_level(finding.severity)
+    file_path = _escape_command_property(finding.file_path)
+    message = _escape_command_message(
+        f"{finding.title}: {finding.description} Recommendation: {finding.recommendation}"
+    )
+    parts = [f"file={file_path}", f"line={finding.line_start}"]
+    if finding.line_end is not None:
+        parts.append(f"endLine={finding.line_end}")
+    return f"::{level} {','.join(parts)}::{message}"
+
+
+def render_github_annotations(result: ScanResult) -> str:
+    """Render findings as GitHub Actions annotation commands."""
+    return "\n".join(_to_github_annotation(finding) for finding in result.sorted_findings)

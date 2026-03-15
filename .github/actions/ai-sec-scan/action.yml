@@ -1,0 +1,76 @@
+name: ai-sec-scan
+description: Scan source code for security issues and optionally upload SARIF results.
+author: Chris Drake <chris@thedrakegroup.com>
+
+inputs:
+  path:
+    description: File or directory to scan.
+    required: false
+    default: "."
+  provider:
+    description: LLM provider to use.
+    required: false
+    default: anthropic
+  model:
+    description: Model name override.
+    required: false
+  severity:
+    description: Minimum severity threshold.
+    required: false
+  output-format:
+    description: Output format (text, json, sarif, github).
+    required: false
+    default: sarif
+  api-key:
+    description: API key used for the selected provider.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install ai-sec-scan
+      shell: bash
+      run: |
+        set -euo pipefail
+        python -m pip install --upgrade pip
+        pip install .
+
+    - name: Run ai-sec-scan
+      id: run_scan
+      shell: bash
+      continue-on-error: true
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.api-key }}
+        OPENAI_API_KEY: ${{ inputs.api-key }}
+      run: |
+        set -euo pipefail
+        cmd=(
+          ai-sec-scan scan "${{ inputs.path }}"
+          --provider "${{ inputs.provider }}"
+          --output "${{ inputs.output-format }}"
+        )
+
+        if [[ -n "${{ inputs.model }}" ]]; then
+          cmd+=(--model "${{ inputs.model }}")
+        fi
+
+        if [[ -n "${{ inputs.severity }}" ]]; then
+          cmd+=(--severity "${{ inputs.severity }}")
+        fi
+
+        if [[ "${{ inputs.output-format }}" == "sarif" ]]; then
+          cmd+=(--output-file ai-sec-scan.sarif)
+        fi
+
+        "${cmd[@]}"
+
+    - name: Upload SARIF
+      if: ${{ always() && inputs.output-format == 'sarif' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ai-sec-scan.sarif
+
+    - name: Fail when scan detects findings
+      if: ${{ steps.run_scan.outcome == 'failure' }}
+      shell: bash
+      run: exit 1

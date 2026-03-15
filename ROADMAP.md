@@ -9,12 +9,12 @@
 - Rich terminal UI with progress indicators
 - GitHub Code Scanning integration via SARIF upload
 
-## v0.2.0
+## v0.2.0 (complete)
 
-- GitHub Action for drop-in CI integration
-- Pre-commit hook support
-- `.ai-sec-scan.yaml` config file for per-project defaults
-- Scan summary annotations on pull requests
+- [x] GitHub Action for drop-in CI integration
+- [x] Pre-commit hook support
+- [x] `.ai-sec-scan.yaml` config file for per-project defaults
+- [x] Scan summary annotations on pull requests
 
 ## v0.3.0
 

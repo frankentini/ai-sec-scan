@@ -1,0 +1,26 @@
+name: Security Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ai-sec-scan
+        uses: ./.github/actions/ai-sec-scan
+        with:
+          path: .
+          provider: anthropic
+          output-format: sarif
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
