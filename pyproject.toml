@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "Chris Drake", email = "frankentini@users.noreply.github.com" },
+    { name = "frankentini", email = "frankentini@users.noreply.github.com" },
 ]
 keywords = ["security", "scanner", "ai", "sast", "code-analysis"]
 classifiers = [

@@ -1,6 +1,6 @@
 name: ai-sec-scan
 description: Scan source code for security issues and optionally upload SARIF results.
-author: Chris Drake <chris@thedrakegroup.com>
+author: frankentini
 
 inputs:
   path:
