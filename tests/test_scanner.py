@@ -185,3 +185,10 @@ class TestScan:
         result = asyncio.run(scan(tmp_path, provider))
         assert result.files_scanned == 1
         assert result.findings == []
+
+    def test_scan_quiet_mode(self, tmp_path: Path) -> None:
+        (tmp_path / "app.py").write_text("x = 1")
+        provider = MockProvider()
+        result = asyncio.run(scan(tmp_path, provider, quiet=True))
+        assert result.files_scanned == 1
+        assert result.findings == []

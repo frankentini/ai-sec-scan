@@ -43,6 +43,7 @@ def test_scan_loads_defaults_from_target_config(  # type: ignore[no-untyped-def]
         exclude: list[str] | None = None,
         max_file_size_kb: int = 100,
         min_severity: str | None = None,
+        quiet: bool = False,
     ) -> ScanResult:
         captured["include"] = include
         captured["exclude"] = exclude
@@ -129,6 +130,48 @@ def test_dry_run_empty(tmp_path: Path) -> None:
     assert "No files match" in result.output
 
 
+def test_quiet_flag_suppresses_progress(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """--quiet should suppress the banner and progress output."""
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+
+    def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+        return _DummyProvider()
+
+    def fake_run_scan_sync(  # type: ignore[no-untyped-def]
+        path: Path,
+        provider: BaseProvider,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
+        max_file_size_kb: int = 100,
+        min_severity: str | None = None,
+        quiet: bool = False,
+    ) -> ScanResult:
+        captured["quiet"] = quiet
+        return ScanResult(
+            findings=[],
+            files_scanned=1,
+            scan_duration=0.01,
+            provider=provider.name,
+            model=provider.model,
+        )
+
+    monkeypatch.setattr("ai_sec_scan.cli._get_provider", fake_get_provider)
+    monkeypatch.setattr("ai_sec_scan.scanner.run_scan_sync", fake_run_scan_sync)
+
+    with runner.isolated_filesystem():
+        project_dir = Path("project")
+        project_dir.mkdir()
+        (project_dir / "app.py").write_text("print('ok')", encoding="utf-8")
+
+        result = runner.invoke(main, ["scan", "project", "--quiet"])
+
+    assert result.exit_code == 0
+    assert captured["quiet"] is True
+    # Banner should not appear in stderr-captured output
+    assert "ai-sec-scan" not in result.output
+
+
 def test_cli_flags_override_config(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     runner = CliRunner()
     captured: dict[str, object] = {}
@@ -145,6 +188,7 @@ def test_cli_flags_override_config(monkeypatch) -> None:  # type: ignore[no-unty
         exclude: list[str] | None = None,
         max_file_size_kb: int = 100,
         min_severity: str | None = None,
+        quiet: bool = False,
     ) -> ScanResult:
         captured["include"] = include
         captured["max_file_size_kb"] = max_file_size_kb

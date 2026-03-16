@@ -44,6 +44,7 @@ _CONFIG_KEY_MAP = {
     "exclude": "exclude",
     "github_annotations": "github_annotations",
     "dry_run": "dry_run",
+    "quiet": "quiet",
 }
 
 
@@ -220,6 +221,12 @@ def version() -> None:
     default=False,
     help="List files that would be scanned without running analysis.",
 )
+@click.option(
+    "-q", "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress progress output. Useful for CI and scripting.",
+)
 def scan(
     path: str,
     provider: str,
@@ -232,6 +239,7 @@ def scan(
     exclude: tuple[str, ...],
     github_annotations: bool,
     dry_run: bool,
+    quiet: bool,
 ) -> None:
     """Scan a file or directory for security vulnerabilities."""
     from ai_sec_scan.scanner import collect_files, run_scan_sync
@@ -262,11 +270,12 @@ def scan(
         console.print(f"[red]{e}[/red]")
         sys.exit(1)
 
-    console.print(
-        f"[bold]ai-sec-scan[/bold] v{__version__} | "
-        f"provider: {llm_provider.name} | model: {llm_provider.model}"
-    )
-    console.print(f"Scanning: {target.resolve()}\n")
+    if not quiet:
+        console.print(
+            f"[bold]ai-sec-scan[/bold] v{__version__} | "
+            f"provider: {llm_provider.name} | model: {llm_provider.model}"
+        )
+        console.print(f"Scanning: {target.resolve()}\n")
 
     result = run_scan_sync(
         path=target,
@@ -275,6 +284,7 @@ def scan(
         exclude=list(exclude) if exclude else None,
         max_file_size_kb=max_file_size,
         min_severity=severity,
+        quiet=quiet,
     )
 
     # Render output

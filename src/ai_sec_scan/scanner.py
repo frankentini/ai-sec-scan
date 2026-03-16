@@ -106,6 +106,7 @@ async def scan(
     exclude: list[str] | None = None,
     max_file_size_kb: int = 100,
     min_severity: str | None = None,
+    quiet: bool = False,
 ) -> ScanResult:
     """Run a security scan on a file or directory.
 
@@ -123,7 +124,8 @@ async def scan(
     files = collect_files(path, include, exclude, max_file_size_kb)
 
     if not files:
-        console.print("[yellow]No files found to scan.[/yellow]")
+        if not quiet:
+            console.print("[yellow]No files found to scan.[/yellow]")
         return ScanResult(
             findings=[],
             files_scanned=0,
@@ -135,31 +137,46 @@ async def scan(
     all_findings: list[Finding] = []
     start_time = time.monotonic()
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Scanning...", total=len(files))
-
+    if quiet:
         for file_path in files:
             rel_path = str(file_path.relative_to(path)) if path.is_dir() else file_path.name
-            progress.update(task, description=f"Scanning {rel_path}")
 
             try:
                 code = file_path.read_text(encoding="utf-8", errors="replace")
-            except OSError as e:
-                console.print(f"[red]Error reading {rel_path}: {e}[/red]")
-                progress.advance(task)
+            except OSError:
                 continue
 
             try:
                 findings = await provider.analyze(code, rel_path)
                 all_findings.extend(findings)
-            except Exception as e:
-                console.print(f"[red]Error analyzing {rel_path}: {e}[/red]")
+            except Exception:
+                pass
+    else:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Scanning...", total=len(files))
 
-            progress.advance(task)
+            for file_path in files:
+                rel_path = str(file_path.relative_to(path)) if path.is_dir() else file_path.name
+                progress.update(task, description=f"Scanning {rel_path}")
+
+                try:
+                    code = file_path.read_text(encoding="utf-8", errors="replace")
+                except OSError as e:
+                    console.print(f"[red]Error reading {rel_path}: {e}[/red]")
+                    progress.advance(task)
+                    continue
+
+                try:
+                    findings = await provider.analyze(code, rel_path)
+                    all_findings.extend(findings)
+                except Exception as e:
+                    console.print(f"[red]Error analyzing {rel_path}: {e}[/red]")
+
+                progress.advance(task)
 
     duration = time.monotonic() - start_time
 
@@ -184,8 +201,9 @@ def run_scan_sync(
     exclude: list[str] | None = None,
     max_file_size_kb: int = 100,
     min_severity: str | None = None,
+    quiet: bool = False,
 ) -> ScanResult:
     """Synchronous wrapper for the async scan function."""
     return asyncio.run(
-        scan(path, provider, include, exclude, max_file_size_kb, min_severity)
+        scan(path, provider, include, exclude, max_file_size_kb, min_severity, quiet)
     )
