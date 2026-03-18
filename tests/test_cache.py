@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import time
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -104,3 +107,51 @@ class TestResultCache:
         cache_dir = tmp_path / "deep" / "nested" / "cache"
         cache = ResultCache(cache_dir=cache_dir)
         assert cache_dir.exists()
+
+    def test_expired_entry_returns_none(
+        self, tmp_path: Path, sample_finding: Finding
+    ) -> None:
+        cache = ResultCache(cache_dir=tmp_path / "cache", max_age_seconds=60)
+        cache.put("app.py", "hash1", "anthropic", "claude-3", [sample_finding])
+
+        # Simulate passage of time by patching time.time
+        with patch("ai_sec_scan.cache.time") as mock_time:
+            mock_time.time.return_value = time.time() + 120
+            result = cache.get("app.py", "hash1", "anthropic", "claude-3")
+        assert result is None
+
+    def test_non_expired_entry_returned(
+        self, tmp_path: Path, sample_finding: Finding
+    ) -> None:
+        cache = ResultCache(cache_dir=tmp_path / "cache", max_age_seconds=300)
+        cache.put("app.py", "hash1", "anthropic", "claude-3", [sample_finding])
+        result = cache.get("app.py", "hash1", "anthropic", "claude-3")
+        assert result is not None
+        assert len(result) == 1
+
+    def test_evict_expired(self, tmp_path: Path, sample_finding: Finding) -> None:
+        cache = ResultCache(cache_dir=tmp_path / "cache", max_age_seconds=60)
+        cache.put("old.py", "h1", "anthropic", "claude-3", [sample_finding])
+
+        # Manually backdate the timestamp
+        for entry in cache.cache_dir.glob("*.json"):
+            data = json.loads(entry.read_text())
+            data["timestamp"] = time.time() - 120
+            entry.write_text(json.dumps(data))
+
+        cache.put("new.py", "h2", "anthropic", "claude-3", [])
+        evicted = cache.evict_expired()
+        assert evicted == 1
+        # The fresh entry should still exist
+        assert cache.get("new.py", "h2", "anthropic", "claude-3") is not None
+
+    def test_stats(self, tmp_path: Path, sample_finding: Finding) -> None:
+        cache = ResultCache(cache_dir=tmp_path / "cache")
+        assert cache.stats()["total_entries"] == 0
+
+        cache.put("a.py", "h1", "anthropic", "claude-3", [sample_finding])
+        cache.put("b.py", "h2", "anthropic", "claude-3", [])
+        stats = cache.stats()
+        assert stats["total_entries"] == 2
+        assert stats["total_bytes"] > 0
+        assert stats["oldest_timestamp"] is not None

@@ -12,6 +12,7 @@ from ai_sec_scan.models import Finding
 
 CACHE_VERSION = 1
 DEFAULT_CACHE_DIR = ".ai-sec-scan-cache"
+DEFAULT_MAX_AGE = 7 * 24 * 3600  # 7 days
 
 
 def file_hash(path: Path) -> str:
@@ -39,12 +40,18 @@ def _cache_key(file_path: str, provider: str, model: str) -> str:
 class ResultCache:
     """Disk-backed cache that maps (file, provider, model) to findings.
 
-    Cache entries are invalidated when the file content hash changes.
+    Cache entries are invalidated when the file content hash changes or
+    when they exceed ``max_age_seconds`` (default 7 days).
     """
 
-    def __init__(self, cache_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        max_age_seconds: int | None = None,
+    ) -> None:
         self._dir = cache_dir or Path(DEFAULT_CACHE_DIR)
         self._dir.mkdir(parents=True, exist_ok=True)
+        self._max_age = max_age_seconds if max_age_seconds is not None else DEFAULT_MAX_AGE
 
     @property
     def cache_dir(self) -> Path:
@@ -75,6 +82,13 @@ class ResultCache:
             return None
         if data.get("content_hash") != content_hash:
             return None
+
+        # Check expiration
+        ts = data.get("timestamp")
+        if self._max_age > 0 and isinstance(ts, (int, float)):
+            if time.time() - ts > self._max_age:
+                entry_path.unlink(missing_ok=True)
+                return None
 
         try:
             return [Finding.model_validate(f) for f in data.get("findings", [])]
@@ -111,3 +125,60 @@ class ResultCache:
             entry.unlink()
             count += 1
         return count
+
+    def evict_expired(self) -> int:
+        """Remove cache entries older than max_age_seconds.
+
+        Returns:
+            Number of entries evicted.
+        """
+        if self._max_age <= 0:
+            return 0
+
+        now = time.time()
+        evicted = 0
+        for entry_path in self._dir.glob("*.json"):
+            try:
+                data = json.loads(entry_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                entry_path.unlink(missing_ok=True)
+                evicted += 1
+                continue
+
+            ts = data.get("timestamp")
+            if isinstance(ts, (int, float)) and now - ts > self._max_age:
+                entry_path.unlink(missing_ok=True)
+                evicted += 1
+
+        return evicted
+
+    def stats(self) -> dict[str, Any]:
+        """Return cache statistics.
+
+        Returns:
+            Dict with ``total_entries``, ``total_bytes``, and ``oldest_timestamp``.
+        """
+        total_entries = 0
+        total_bytes = 0
+        oldest: float | None = None
+
+        for entry_path in self._dir.glob("*.json"):
+            total_entries += 1
+            try:
+                total_bytes += entry_path.stat().st_size
+            except OSError:
+                continue
+            try:
+                data = json.loads(entry_path.read_text(encoding="utf-8"))
+                ts = data.get("timestamp")
+                if isinstance(ts, (int, float)):
+                    if oldest is None or ts < oldest:
+                        oldest = ts
+            except (json.JSONDecodeError, OSError):
+                continue
+
+        return {
+            "total_entries": total_entries,
+            "total_bytes": total_bytes,
+            "oldest_timestamp": oldest,
+        }
