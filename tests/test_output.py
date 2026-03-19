@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
+
 from ai_sec_scan.models import Finding, ScanResult, Severity
-from ai_sec_scan.output import render_github_annotations
+from ai_sec_scan.output import render_github_annotations, render_json
 
 
 def _make_result(findings: list[Finding]) -> ScanResult:
@@ -39,6 +41,80 @@ def test_render_github_annotations_levels() -> None:
     lines = output.splitlines()
     assert lines[0].startswith("::error ")
     assert lines[1].startswith("::warning ")
+
+
+class TestRenderJson:
+    def test_empty_result(self) -> None:
+        result = _make_result([])
+        output = render_json(result)
+        data = json.loads(output)
+        assert data["findings"] == []
+        assert data["files_scanned"] == 1
+        assert data["provider"] == "test"
+
+    def test_findings_included(self) -> None:
+        finding = Finding(
+            file_path="app.py",
+            line_start=42,
+            line_end=44,
+            severity=Severity.CRITICAL,
+            title="RCE",
+            description="Remote code execution via eval()",
+            recommendation="Remove eval()",
+            cwe_id="CWE-94",
+            owasp_category="A03:2021",
+        )
+        output = render_json(_make_result([finding]))
+        data = json.loads(output)
+        assert len(data["findings"]) == 1
+        f = data["findings"][0]
+        assert f["file_path"] == "app.py"
+        assert f["line_start"] == 42
+        assert f["line_end"] == 44
+        assert f["severity"] == "critical"
+        assert f["cwe_id"] == "CWE-94"
+        assert f["owasp_category"] == "A03:2021"
+
+    def test_output_is_valid_json(self) -> None:
+        findings = [
+            Finding(
+                file_path="a.py",
+                line_start=1,
+                severity=Severity.HIGH,
+                title="Issue A",
+                description="desc",
+                recommendation="fix",
+            ),
+            Finding(
+                file_path="b.py",
+                line_start=5,
+                severity=Severity.LOW,
+                title="Issue B",
+                description="desc",
+                recommendation="fix",
+            ),
+        ]
+        output = render_json(_make_result(findings))
+        data = json.loads(output)
+        assert isinstance(data, dict)
+        assert data["scan_duration"] == 0.1
+        assert data["model"] == "test-model"
+
+    def test_optional_fields_null_when_absent(self) -> None:
+        finding = Finding(
+            file_path="x.py",
+            line_start=1,
+            severity=Severity.INFO,
+            title="Tip",
+            description="Consider logging",
+            recommendation="Add logging",
+        )
+        output = render_json(_make_result([finding]))
+        data = json.loads(output)
+        f = data["findings"][0]
+        assert f["line_end"] is None
+        assert f["cwe_id"] is None
+        assert f["owasp_category"] is None
 
 
 def test_render_github_annotations_escape_values() -> None:
