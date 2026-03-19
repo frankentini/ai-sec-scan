@@ -151,6 +151,18 @@ class TestScanResult:
         assert r.sorted_findings == []
         assert r.findings_by_severity == {}
 
+    def test_filter_by_severity(self, sample_result: ScanResult) -> None:
+        filtered = sample_result.filter_by_severity("high")
+        assert len(filtered.findings) == 1
+        assert filtered.findings[0].severity == Severity.CRITICAL
+        # metadata preserved
+        assert filtered.files_scanned == 3
+        assert filtered.provider == "test"
+
+    def test_filter_by_severity_returns_all_when_low(self, sample_result: ScanResult) -> None:
+        filtered = sample_result.filter_by_severity("info")
+        assert len(filtered.findings) == 3
+
     def test_model_dump(self, sample_result: ScanResult) -> None:
         data = sample_result.model_dump(mode="json")
         assert data["files_scanned"] == 3

@@ -10,7 +10,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from ai_sec_scan.models import Finding, ScanResult, Severity
+from ai_sec_scan.models import Finding, ScanResult
 from ai_sec_scan.providers.base import BaseProvider
 
 DEFAULT_EXCLUDES = [
@@ -180,18 +180,19 @@ async def scan(
 
     duration = time.monotonic() - start_time
 
-    # Apply severity filter
-    if min_severity:
-        min_rank = Severity(min_severity).rank
-        all_findings = [f for f in all_findings if f.severity.rank >= min_rank]
-
-    return ScanResult(
+    result = ScanResult(
         findings=all_findings,
         files_scanned=len(files),
         scan_duration=round(duration, 2),
         provider=provider.name,
         model=provider.model,
     )
+
+    # Apply severity filter
+    if min_severity:
+        result = result.filter_by_severity(min_severity)
+
+    return result
 
 
 def run_scan_sync(

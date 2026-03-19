@@ -88,3 +88,16 @@ class ScanResult(BaseModel):
     def sorted_findings(self) -> list[Finding]:
         """Findings sorted by severity (most severe first)."""
         return sorted(self.findings, key=lambda f: f.severity.rank, reverse=True)
+
+    def filter_by_severity(self, min_severity: str) -> "ScanResult":
+        """Return a new ScanResult with only findings at or above *min_severity*.
+
+        Args:
+            min_severity: Minimum severity string (e.g. ``"high"``).
+
+        Returns:
+            A new ``ScanResult`` containing only the matching findings.
+        """
+        min_rank = Severity(min_severity).rank
+        filtered = [f for f in self.findings if f.severity.rank >= min_rank]
+        return self.model_copy(update={"findings": filtered})
