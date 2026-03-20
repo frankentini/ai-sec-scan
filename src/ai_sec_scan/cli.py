@@ -315,3 +315,54 @@ def scan(
     # Exit with non-zero if findings exist
     if result.findings:
         sys.exit(1)
+
+
+@main.group()
+def cache() -> None:
+    """Manage the scan result cache."""
+
+
+@cache.command("stats")
+@click.option(
+    "--cache-dir",
+    default=None,
+    type=click.Path(),
+    help="Cache directory (default: .ai-sec-scan-cache).",
+)
+def cache_stats(cache_dir: str | None) -> None:
+    """Show cache statistics."""
+    from ai_sec_scan.cache import ResultCache
+
+    rc = ResultCache(cache_dir=Path(cache_dir) if cache_dir else None)
+    info = rc.stats()
+
+    if info["total_entries"] == 0:
+        console.print("[dim]Cache is empty.[/dim]")
+        return
+
+    console.print(f"[bold]Entries:[/bold]  {info['total_entries']}")
+    console.print(f"[bold]Size:[/bold]    {info['total_bytes'] / 1024:.1f} KB")
+
+    oldest = info.get("oldest_timestamp")
+    if oldest is not None:
+        import datetime
+
+        ts = datetime.datetime.fromtimestamp(oldest, tz=datetime.timezone.utc)
+        console.print(f"[bold]Oldest:[/bold]  {ts:%Y-%m-%d %H:%M:%S UTC}")
+
+
+@cache.command("clear")
+@click.option(
+    "--cache-dir",
+    default=None,
+    type=click.Path(),
+    help="Cache directory (default: .ai-sec-scan-cache).",
+)
+@click.confirmation_option(prompt="Delete all cached scan results?")
+def cache_clear(cache_dir: str | None) -> None:
+    """Delete all cached scan results."""
+    from ai_sec_scan.cache import ResultCache
+
+    rc = ResultCache(cache_dir=Path(cache_dir) if cache_dir else None)
+    removed = rc.clear()
+    console.print(f"[green]Removed {removed} cached entry(ies).[/green]")
