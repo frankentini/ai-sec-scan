@@ -366,3 +366,31 @@ def cache_clear(cache_dir: str | None) -> None:
     rc = ResultCache(cache_dir=Path(cache_dir) if cache_dir else None)
     removed = rc.clear()
     console.print(f"[green]Removed {removed} cached entry(ies).[/green]")
+
+
+@cache.command("evict")
+@click.option(
+    "--cache-dir",
+    default=None,
+    type=click.Path(),
+    help="Cache directory (default: .ai-sec-scan-cache).",
+)
+@click.option(
+    "--max-age",
+    default=None,
+    type=int,
+    help="Max age in seconds. Defaults to the cache's configured max age (7 days).",
+)
+def cache_evict(cache_dir: str | None, max_age: int | None) -> None:
+    """Remove expired cache entries."""
+    from ai_sec_scan.cache import ResultCache
+
+    rc = ResultCache(
+        cache_dir=Path(cache_dir) if cache_dir else None,
+        max_age_seconds=max_age,
+    )
+    evicted = rc.evict_expired()
+    if evicted:
+        console.print(f"[green]Evicted {evicted} expired entry(ies).[/green]")
+    else:
+        console.print("[dim]No expired entries found.[/dim]")

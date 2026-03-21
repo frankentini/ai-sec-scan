@@ -246,3 +246,46 @@ def test_cli_flags_override_config(monkeypatch) -> None:  # type: ignore[no-unty
     assert captured["min_severity"] == "critical"
     assert captured["max_file_size_kb"] == 88
     assert captured["include"] == ["*.txt"]
+
+
+class TestCacheEvictCommand:
+    def test_evict_removes_expired(self, tmp_path: Path) -> None:
+        """cache evict should remove expired entries."""
+        import json
+        import time
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        # Create an expired entry (timestamp 2 hours ago)
+        entry = {
+            "version": 1,
+            "file_path": "old.py",
+            "content_hash": "abc",
+            "provider": "anthropic",
+            "model": "claude-3",
+            "timestamp": time.time() - 7200,
+            "findings": [],
+        }
+        (cache_dir / "expired.json").write_text(json.dumps(entry))
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main, ["cache", "evict", "--cache-dir", str(cache_dir), "--max-age", "3600"]
+        )
+
+        assert result.exit_code == 0
+        assert "Evicted 1" in result.output
+
+    def test_evict_nothing_expired(self, tmp_path: Path) -> None:
+        """cache evict with no expired entries reports accordingly."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main, ["cache", "evict", "--cache-dir", str(cache_dir)]
+        )
+
+        assert result.exit_code == 0
+        assert "No expired entries" in result.output
