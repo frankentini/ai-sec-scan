@@ -56,6 +56,9 @@ Issues = "https://github.com/frankentini/ai-sec-scan/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_sec_scan"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/ai_sec_scan/py.typed" = "ai_sec_scan/py.typed"
+
 [tool.ruff]
 target-version = "py310"
 line-length = 100
