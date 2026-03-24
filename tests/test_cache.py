@@ -155,3 +155,21 @@ class TestResultCache:
         assert stats["total_entries"] == 2
         assert stats["total_bytes"] > 0
         assert stats["oldest_timestamp"] is not None
+
+    def test_repr(self, cache: ResultCache) -> None:
+        r = repr(cache)
+        assert "ResultCache" in r
+        assert "cache_dir=" in r
+        assert "max_age_seconds=" in r
+
+    def test_len_empty(self, cache: ResultCache) -> None:
+        assert len(cache) == 0
+
+    def test_len_with_entries(
+        self, cache: ResultCache, sample_finding: Finding
+    ) -> None:
+        cache.put("a.py", "h1", "anthropic", "claude-3", [sample_finding])
+        cache.put("b.py", "h2", "anthropic", "claude-3", [])
+        assert len(cache) == 2
+        cache.clear()
+        assert len(cache) == 0

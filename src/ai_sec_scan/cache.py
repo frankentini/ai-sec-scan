@@ -57,6 +57,13 @@ class ResultCache:
     def cache_dir(self) -> Path:
         return self._dir
 
+    def __repr__(self) -> str:
+        return f"ResultCache(cache_dir={self._dir!r}, max_age_seconds={self._max_age})"
+
+    def __len__(self) -> int:
+        """Return the number of cached entries."""
+        return sum(1 for _ in self._dir.glob("*.json"))
+
     def _entry_path(self, key: str) -> Path:
         return self._dir / f"{key}.json"
 
