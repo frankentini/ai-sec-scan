@@ -45,6 +45,8 @@ _CONFIG_KEY_MAP = {
     "github_annotations": "github_annotations",
     "dry_run": "dry_run",
     "quiet": "quiet",
+    "cache_dir": "cache_dir",
+    "no_cache": "no_cache",
 }
 
 
@@ -227,6 +229,18 @@ def version() -> None:
     default=False,
     help="Suppress progress output. Useful for CI and scripting.",
 )
+@click.option(
+    "--cache-dir",
+    default=None,
+    type=click.Path(),
+    help="Cache directory (default: .ai-sec-scan-cache).",
+)
+@click.option(
+    "--no-cache",
+    is_flag=True,
+    default=False,
+    help="Disable result caching.",
+)
 def scan(
     path: str,
     provider: str,
@@ -240,6 +254,8 @@ def scan(
     github_annotations: bool,
     dry_run: bool,
     quiet: bool,
+    cache_dir: str | None,
+    no_cache: bool,
 ) -> None:
     """Scan a file or directory for security vulnerabilities."""
     from ai_sec_scan.scanner import collect_files, run_scan_sync
@@ -285,6 +301,8 @@ def scan(
         max_file_size_kb=max_file_size,
         min_severity=severity,
         quiet=quiet,
+        cache_dir=Path(cache_dir) if cache_dir else None,
+        no_cache=no_cache,
     )
 
     # Render output

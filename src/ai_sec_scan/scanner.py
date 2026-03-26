@@ -10,6 +10,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from ai_sec_scan.cache import ResultCache, file_hash
 from ai_sec_scan.models import Finding, ScanResult
 from ai_sec_scan.providers.base import BaseProvider
 
@@ -99,6 +100,40 @@ def collect_files(
     return files
 
 
+async def _analyze_file(
+    file_path: Path,
+    rel_path: str,
+    provider: BaseProvider,
+    cache: ResultCache | None,
+) -> list[Finding]:
+    """Analyze a single file, using cache when available.
+
+    Returns the findings for the file. On cache hit the provider is
+    skipped entirely. On cache miss the result is stored for future runs.
+    """
+    try:
+        code = file_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+
+    content_hash = file_hash(file_path) if cache else ""
+
+    if cache:
+        cached = cache.get(rel_path, content_hash, provider.name, provider.model)
+        if cached is not None:
+            return cached
+
+    try:
+        findings = await provider.analyze(code, rel_path)
+    except Exception:
+        return []
+
+    if cache:
+        cache.put(rel_path, content_hash, provider.name, provider.model, findings)
+
+    return findings
+
+
 async def scan(
     path: Path,
     provider: BaseProvider,
@@ -107,6 +142,8 @@ async def scan(
     max_file_size_kb: int = 100,
     min_severity: str | None = None,
     quiet: bool = False,
+    cache_dir: Path | None = None,
+    no_cache: bool = False,
 ) -> ScanResult:
     """Run a security scan on a file or directory.
 
@@ -117,6 +154,9 @@ async def scan(
         exclude: Glob patterns to exclude.
         max_file_size_kb: Maximum file size in KB.
         min_severity: Minimum severity to include in results.
+        quiet: Suppress progress output.
+        cache_dir: Directory for the result cache. ``None`` uses the default.
+        no_cache: Disable caching entirely when ``True``.
 
     Returns:
         ScanResult with all findings.
@@ -134,23 +174,16 @@ async def scan(
             model=provider.model,
         )
 
+    cache = None if no_cache else ResultCache(cache_dir=cache_dir)
+
     all_findings: list[Finding] = []
     start_time = time.monotonic()
 
     if quiet:
-        for file_path in files:
-            rel_path = str(file_path.relative_to(path)) if path.is_dir() else file_path.name
-
-            try:
-                code = file_path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-
-            try:
-                findings = await provider.analyze(code, rel_path)
-                all_findings.extend(findings)
-            except Exception:
-                pass
+        for fp in files:
+            rel_path = str(fp.relative_to(path)) if path.is_dir() else fp.name
+            findings = await _analyze_file(fp, rel_path, provider, cache)
+            all_findings.extend(findings)
     else:
         with Progress(
             SpinnerColumn(),
@@ -159,22 +192,12 @@ async def scan(
         ) as progress:
             task = progress.add_task("Scanning...", total=len(files))
 
-            for file_path in files:
-                rel_path = str(file_path.relative_to(path)) if path.is_dir() else file_path.name
+            for fp in files:
+                rel_path = str(fp.relative_to(path)) if path.is_dir() else fp.name
                 progress.update(task, description=f"Scanning {rel_path}")
 
-                try:
-                    code = file_path.read_text(encoding="utf-8", errors="replace")
-                except OSError as e:
-                    console.print(f"[red]Error reading {rel_path}: {e}[/red]")
-                    progress.advance(task)
-                    continue
-
-                try:
-                    findings = await provider.analyze(code, rel_path)
-                    all_findings.extend(findings)
-                except Exception as e:
-                    console.print(f"[red]Error analyzing {rel_path}: {e}[/red]")
+                findings = await _analyze_file(fp, rel_path, provider, cache)
+                all_findings.extend(findings)
 
                 progress.advance(task)
 
@@ -203,8 +226,13 @@ def run_scan_sync(
     max_file_size_kb: int = 100,
     min_severity: str | None = None,
     quiet: bool = False,
+    cache_dir: Path | None = None,
+    no_cache: bool = False,
 ) -> ScanResult:
     """Synchronous wrapper for the async scan function."""
     return asyncio.run(
-        scan(path, provider, include, exclude, max_file_size_kb, min_severity, quiet)
+        scan(
+            path, provider, include, exclude, max_file_size_kb,
+            min_severity, quiet, cache_dir, no_cache,
+        )
     )
