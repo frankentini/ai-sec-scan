@@ -47,6 +47,7 @@ _CONFIG_KEY_MAP = {
     "quiet": "quiet",
     "cache_dir": "cache_dir",
     "no_cache": "no_cache",
+    "parallel": "parallel",
 }
 
 
@@ -241,6 +242,13 @@ def version() -> None:
     default=False,
     help="Disable result caching.",
 )
+@click.option(
+    "--parallel",
+    default=1,
+    type=int,
+    show_default=True,
+    help="Number of files to analyze concurrently.",
+)
 def scan(
     path: str,
     provider: str,
@@ -256,6 +264,7 @@ def scan(
     quiet: bool,
     cache_dir: str | None,
     no_cache: bool,
+    parallel: int,
 ) -> None:
     """Scan a file or directory for security vulnerabilities."""
     from ai_sec_scan.scanner import collect_files, run_scan_sync
@@ -303,6 +312,7 @@ def scan(
         quiet=quiet,
         cache_dir=Path(cache_dir) if cache_dir else None,
         no_cache=no_cache,
+        parallel=parallel,
     )
 
     # Render output

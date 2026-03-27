@@ -192,3 +192,46 @@ class TestScan:
         result = asyncio.run(scan(tmp_path, provider, quiet=True))
         assert result.files_scanned == 1
         assert result.findings == []
+
+    def test_parallel_scan_collects_all_findings(self, tmp_path: Path) -> None:
+        for i in range(5):
+            (tmp_path / f"mod{i}.py").write_text(f"x = {i}")
+        finding = Finding(
+            file_path="placeholder",
+            line_start=1,
+            severity=Severity.MEDIUM,
+            title="Test finding",
+            description="d",
+            recommendation="r",
+        )
+        provider = MockProvider(findings=[finding])
+        result = asyncio.run(scan(tmp_path, provider, quiet=True, parallel=3))
+        assert result.files_scanned == 5
+        assert len(result.findings) == 5
+
+    def test_parallel_scan_with_error_provider(self, tmp_path: Path) -> None:
+        (tmp_path / "a.py").write_text("x = 1")
+        (tmp_path / "b.py").write_text("y = 2")
+        provider = ErrorProvider()
+        result = asyncio.run(scan(tmp_path, provider, quiet=True, parallel=2))
+        assert result.files_scanned == 2
+        assert result.findings == []
+
+    def test_parallel_scan_severity_filter(self, tmp_path: Path) -> None:
+        for name in ("a.py", "b.py", "c.py"):
+            (tmp_path / name).write_text("code")
+        findings = [
+            Finding(
+                file_path="x",
+                line_start=1,
+                severity=Severity.LOW,
+                title="Low",
+                description="d",
+                recommendation="r",
+            ),
+        ]
+        provider = MockProvider(findings=findings)
+        result = asyncio.run(
+            scan(tmp_path, provider, quiet=True, parallel=2, min_severity="high")
+        )
+        assert result.findings == []

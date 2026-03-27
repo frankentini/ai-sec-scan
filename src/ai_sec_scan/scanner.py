@@ -144,6 +144,7 @@ async def scan(
     quiet: bool = False,
     cache_dir: Path | None = None,
     no_cache: bool = False,
+    parallel: int = 1,
 ) -> ScanResult:
     """Run a security scan on a file or directory.
 
@@ -157,6 +158,9 @@ async def scan(
         quiet: Suppress progress output.
         cache_dir: Directory for the result cache. ``None`` uses the default.
         no_cache: Disable caching entirely when ``True``.
+        parallel: Maximum number of files to analyze concurrently. Defaults
+            to ``1`` (sequential). Values above 1 enable parallel analysis
+            using an ``asyncio.Semaphore``.
 
     Returns:
         ScanResult with all findings.
@@ -175,31 +179,67 @@ async def scan(
         )
 
     cache = None if no_cache else ResultCache(cache_dir=cache_dir)
+    concurrency = max(1, parallel)
 
     all_findings: list[Finding] = []
     start_time = time.monotonic()
 
-    if quiet:
-        for fp in files:
-            rel_path = str(fp.relative_to(path)) if path.is_dir() else fp.name
-            findings = await _analyze_file(fp, rel_path, provider, cache)
-            all_findings.extend(findings)
-    else:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("Scanning...", total=len(files))
-
+    if concurrency == 1:
+        # Sequential path (original behaviour)
+        if quiet:
             for fp in files:
                 rel_path = str(fp.relative_to(path)) if path.is_dir() else fp.name
-                progress.update(task, description=f"Scanning {rel_path}")
-
                 findings = await _analyze_file(fp, rel_path, provider, cache)
                 all_findings.extend(findings)
+        else:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Scanning...", total=len(files))
 
-                progress.advance(task)
+                for fp in files:
+                    rel_path = str(fp.relative_to(path)) if path.is_dir() else fp.name
+                    progress.update(task, description=f"Scanning {rel_path}")
+
+                    findings = await _analyze_file(fp, rel_path, provider, cache)
+                    all_findings.extend(findings)
+
+                    progress.advance(task)
+    else:
+        # Parallel path
+        semaphore = asyncio.Semaphore(concurrency)
+        results_lock = asyncio.Lock()
+
+        progress_ctx = (
+            None
+            if quiet
+            else Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            )
+        )
+
+        task_id = None
+        if progress_ctx is not None:
+            progress_ctx.start()
+            task_id = progress_ctx.add_task("Scanning...", total=len(files))
+
+        async def _process(fp: Path) -> None:
+            rel_path = str(fp.relative_to(path)) if path.is_dir() else fp.name
+            async with semaphore:
+                findings = await _analyze_file(fp, rel_path, provider, cache)
+            async with results_lock:
+                all_findings.extend(findings)
+            if progress_ctx is not None and task_id is not None:
+                progress_ctx.advance(task_id)
+
+        await asyncio.gather(*[_process(fp) for fp in files])
+
+        if progress_ctx is not None:
+            progress_ctx.stop()
 
     duration = time.monotonic() - start_time
 
@@ -228,11 +268,12 @@ def run_scan_sync(
     quiet: bool = False,
     cache_dir: Path | None = None,
     no_cache: bool = False,
+    parallel: int = 1,
 ) -> ScanResult:
     """Synchronous wrapper for the async scan function."""
     return asyncio.run(
         scan(
             path, provider, include, exclude, max_file_size_kb,
-            min_severity, quiet, cache_dir, no_cache,
+            min_severity, quiet, cache_dir, no_cache, parallel,
         )
     )

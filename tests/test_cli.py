@@ -46,6 +46,7 @@ def test_scan_loads_defaults_from_target_config(  # type: ignore[no-untyped-def]
         quiet: bool = False,
         cache_dir: Path | None = None,
         no_cache: bool = False,
+        parallel: int = 1,
     ) -> ScanResult:
         captured["include"] = include
         captured["exclude"] = exclude
@@ -150,6 +151,7 @@ def test_quiet_flag_suppresses_progress(monkeypatch) -> None:  # type: ignore[no
         quiet: bool = False,
         cache_dir: Path | None = None,
         no_cache: bool = False,
+        parallel: int = 1,
     ) -> ScanResult:
         captured["quiet"] = quiet
         return ScanResult(
@@ -195,6 +197,7 @@ def test_cli_flags_override_config(monkeypatch) -> None:  # type: ignore[no-unty
         quiet: bool = False,
         cache_dir: Path | None = None,
         no_cache: bool = False,
+        parallel: int = 1,
     ) -> ScanResult:
         captured["include"] = include
         captured["max_file_size_kb"] = max_file_size_kb
