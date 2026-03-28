@@ -18,17 +18,7 @@ def cache(tmp_path: Path) -> ResultCache:
     return ResultCache(cache_dir=tmp_path / "cache")
 
 
-@pytest.fixture()
-def sample_finding() -> Finding:
-    return Finding(
-        file_path="app.py",
-        line_start=10,
-        severity=Severity.HIGH,
-        title="SQL Injection",
-        description="User input used directly in query",
-        recommendation="Use parameterized queries",
-        cwe_id="CWE-89",
-    )
+# sample_finding fixture is inherited from conftest.py
 
 
 class TestFileHash:
