@@ -78,6 +78,29 @@ class TestFinding:
                 recommendation="Fix",
             )
 
+    def test_str_single_line(self) -> None:
+        f = Finding(
+            file_path="app.py",
+            line_start=42,
+            severity=Severity.HIGH,
+            title="Hardcoded Secret",
+            description="desc",
+            recommendation="fix",
+        )
+        assert str(f) == "[HIGH] Hardcoded Secret (app.py:42)"
+
+    def test_str_with_line_range(self) -> None:
+        f = Finding(
+            file_path="db.py",
+            line_start=5,
+            line_end=12,
+            severity=Severity.CRITICAL,
+            title="RCE",
+            description="desc",
+            recommendation="fix",
+        )
+        assert str(f) == "[CRITICAL] RCE (db.py:5-12)"
+
     def test_model_validate_from_dict(self) -> None:
         data = {
             "file_path": "x.py",

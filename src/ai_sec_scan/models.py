@@ -66,6 +66,13 @@ class Finding(BaseModel):
         default=None, description="OWASP Top 10 category (e.g. A03:2021)"
     )
 
+    def __str__(self) -> str:
+        """Human-readable one-line summary for logging and debugging."""
+        location = f"{self.file_path}:{self.line_start}"
+        if self.line_end is not None:
+            location += f"-{self.line_end}"
+        return f"[{self.severity.value.upper()}] {self.title} ({location})"
+
 
 class ScanResult(BaseModel):
     """Aggregated result of a security scan."""
