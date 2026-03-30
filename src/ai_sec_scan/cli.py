@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -394,6 +395,117 @@ def cache_clear(cache_dir: str | None) -> None:
     rc = ResultCache(cache_dir=Path(cache_dir) if cache_dir else None)
     removed = rc.clear()
     console.print(f"[green]Removed {removed} cached entry(ies).[/green]")
+
+
+@main.group()
+def baseline() -> None:
+    """Manage baseline files for suppressing known findings."""
+
+
+@baseline.command("generate")
+@click.argument("path", type=click.Path(exists=True))
+@click.option(
+    "-p", "--provider",
+    type=click.Choice(["anthropic", "openai"]),
+    default="anthropic",
+    show_default=True,
+    help="LLM provider to use.",
+)
+@click.option("-m", "--model", default=None, help="Model name override.")
+@click.option(
+    "-o", "--output-file",
+    default=".ai-sec-scan-baseline.json",
+    show_default=True,
+    help="Output path for the baseline file.",
+)
+@click.option("-i", "--include", multiple=True, help="Glob patterns to include.")
+@click.option("-e", "--exclude", multiple=True, help="Glob patterns to exclude.")
+@click.option(
+    "--max-file-size", default=100, type=int, show_default=True,
+    help="Max file size in KB.",
+)
+@click.option("-q", "--quiet", is_flag=True, default=False, help="Suppress progress output.")
+def baseline_generate(
+    path: str,
+    provider: str,
+    model: str | None,
+    output_file: str,
+    include: tuple[str, ...],
+    exclude: tuple[str, ...],
+    max_file_size: int,
+    quiet: bool,
+) -> None:
+    """Scan and generate a baseline from current findings.
+
+    Runs a full scan and writes all discovered findings as a baseline
+    file. Future scans can load the baseline to suppress these known
+    issues.
+    """
+    from ai_sec_scan.baseline import Baseline
+    from ai_sec_scan.scanner import run_scan_sync
+
+    target = Path(path)
+
+    try:
+        llm_provider = _get_provider(provider, model)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
+
+    if not quiet:
+        console.print(
+            f"[bold]ai-sec-scan[/bold] v{__version__} | generating baseline"
+        )
+        console.print(f"Scanning: {target.resolve()}\n")
+
+    result = run_scan_sync(
+        path=target,
+        provider=llm_provider,
+        include=list(include) if include else None,
+        exclude=list(exclude) if exclude else None,
+        max_file_size_kb=max_file_size,
+        quiet=quiet,
+    )
+
+    doc = Baseline.generate(result.findings)
+    out = Path(output_file)
+    out.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+    console.print(
+        f"\n[green]Baseline written to {out} "
+        f"({len(doc['fingerprints'])} finding(s)).[/green]"
+    )
+
+
+@baseline.command("check")
+@click.argument("baseline_file", type=click.Path(exists=True))
+def baseline_check(baseline_file: str) -> None:
+    """Validate a baseline file and show its contents."""
+    from ai_sec_scan.baseline import Baseline
+
+    path = Path(baseline_file)
+    try:
+        bl = Baseline.load(path)
+    except ValueError as exc:
+        console.print(f"[red]Invalid baseline: {exc}[/red]")
+        sys.exit(1)
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+
+    console.print(f"[bold]Baseline:[/bold] {path}")
+    console.print(f"[bold]Version:[/bold]  {data.get('version', 'unknown')}")
+    console.print(f"[bold]Entries:[/bold]  {len(bl)}")
+
+    entries = data.get("entries", [])
+    if entries:
+        console.print()
+        for entry in entries:
+            fp = entry.get("fingerprint", "?")[:8]
+            title = entry.get("title", "unknown")
+            file_path = entry.get("file_path", "?")
+            cwe = entry.get("cwe_id", "")
+            cwe_label = f" ({cwe})" if cwe else ""
+            console.print(f"  [dim]{fp}[/dim]  {title}{cwe_label}  [dim]{file_path}[/dim]")
 
 
 @cache.command("evict")
