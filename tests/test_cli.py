@@ -257,6 +257,81 @@ def test_cli_flags_override_config(monkeypatch) -> None:  # type: ignore[no-unty
     assert captured["include"] == ["*.txt"]
 
 
+class TestBaselineFlag:
+    def test_baseline_suppresses_known_findings(self, monkeypatch, tmp_path: Path) -> None:
+        """--baseline should filter out findings that match the baseline."""
+        from ai_sec_scan.baseline import Baseline, _fingerprint
+        from ai_sec_scan.models import Finding, Severity
+
+        finding_suppressed = Finding(
+            file_path="app.py",
+            line_start=5,
+            severity=Severity.HIGH,
+            title="SQL Injection",
+            description="desc",
+            recommendation="fix",
+            cwe_id="CWE-89",
+        )
+        finding_kept = Finding(
+            file_path="app.py",
+            line_start=20,
+            severity=Severity.MEDIUM,
+            title="XSS",
+            description="desc",
+            recommendation="fix",
+            cwe_id="CWE-79",
+        )
+
+        # Write baseline file that suppresses only the first finding
+        baseline_doc = Baseline.generate([finding_suppressed])
+        baseline_path = tmp_path / "baseline.json"
+        import json
+        baseline_path.write_text(json.dumps(baseline_doc))
+
+        def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+            return _DummyProvider()
+
+        def fake_run_scan_sync(
+            path,
+            provider,
+            include=None,
+            exclude=None,
+            max_file_size_kb=100,
+            min_severity=None,
+            quiet=False,
+            cache_dir=None,
+            no_cache=False,
+            parallel=1,
+        ):
+            return ScanResult(
+                findings=[finding_suppressed, finding_kept],
+                files_scanned=1,
+                scan_duration=0.01,
+                provider=provider.name,
+                model=provider.model,
+            )
+
+        monkeypatch.setattr("ai_sec_scan.cli._get_provider", fake_get_provider)
+        monkeypatch.setattr("ai_sec_scan.scanner.run_scan_sync", fake_run_scan_sync)
+
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            project_dir = Path("project")
+            project_dir.mkdir()
+            (project_dir / "app.py").write_text("print('ok')", encoding="utf-8")
+
+            result = runner.invoke(
+                main,
+                ["scan", "project", "-o", "json", "-q", "--baseline", str(baseline_path)],
+            )
+
+        # Should still exit 1 because one finding remains
+        assert result.exit_code == 1
+        output = json.loads(result.output)
+        assert len(output["findings"]) == 1
+        assert output["findings"][0]["title"] == "XSS"
+
+
 class TestCacheStatsCommand:
     def test_stats_empty_cache(self, tmp_path: Path) -> None:
         cache_dir = tmp_path / "cache"

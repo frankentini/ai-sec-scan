@@ -49,6 +49,7 @@ _CONFIG_KEY_MAP = {
     "cache_dir": "cache_dir",
     "no_cache": "no_cache",
     "parallel": "parallel",
+    "baseline": "baseline",
 }
 
 
@@ -250,6 +251,12 @@ def version() -> None:
     show_default=True,
     help="Number of files to analyze concurrently.",
 )
+@click.option(
+    "--baseline",
+    default=None,
+    type=click.Path(exists=True),
+    help="Baseline file to suppress known findings.",
+)
 def scan(
     path: str,
     provider: str,
@@ -266,6 +273,7 @@ def scan(
     cache_dir: str | None,
     no_cache: bool,
     parallel: int,
+    baseline: str | None,
 ) -> None:
     """Scan a file or directory for security vulnerabilities."""
     from ai_sec_scan.scanner import collect_files, run_scan_sync
@@ -315,6 +323,18 @@ def scan(
         no_cache=no_cache,
         parallel=parallel,
     )
+
+    # Apply baseline suppression
+    if baseline:
+        from ai_sec_scan.baseline import Baseline as _Baseline
+
+        bl = _Baseline.load(Path(baseline))
+        remaining, suppressed = bl.filter(result.findings)
+        if suppressed and not quiet:
+            console.print(
+                f"[dim]Baseline suppressed {suppressed} known finding(s).[/dim]"
+            )
+        result = result.model_copy(update={"findings": remaining})
 
     # Render output
     if output_format == "text":
