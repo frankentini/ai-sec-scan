@@ -96,6 +96,15 @@ class ScanResult(BaseModel):
         """Findings sorted by severity (most severe first)."""
         return sorted(self.findings, key=lambda f: f.severity.rank, reverse=True)
 
+    def __str__(self) -> str:
+        """One-line summary suitable for logs and quick inspection."""
+        count = len(self.findings)
+        label = "finding" if count == 1 else "findings"
+        return (
+            f"{count} {label} in {self.files_scanned} file(s) "
+            f"[{self.provider}/{self.model}] ({self.scan_duration}s)"
+        )
+
     def filter_by_severity(self, min_severity: str) -> "ScanResult":
         """Return a new ScanResult with only findings at or above *min_severity*.
 
