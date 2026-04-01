@@ -158,6 +158,39 @@ exclude:
 
 CLI flags always override config file values.
 
+## Cache Management
+
+ai-sec-scan caches results per file so unchanged files are skipped on re-scan. The cache lives in `.ai-sec-scan-cache/` by default.
+
+```bash
+# Show cache stats (entries, size, oldest timestamp)
+ai-sec-scan cache stats
+
+# Evict expired entries (default max age: 7 days)
+ai-sec-scan cache evict
+ai-sec-scan cache evict --max-age 3600   # custom max age in seconds
+
+# Clear everything
+ai-sec-scan cache clear
+```
+
+Pass `--no-cache` to any scan to bypass caching entirely, or `--cache-dir` to override the storage location.
+
+## Baseline Suppression
+
+Baselines let you record existing findings so they stop appearing in future scans.
+
+```bash
+# Generate a baseline from the current scan
+ai-sec-scan baseline generate ./src -o .ai-sec-scan-baseline.json
+
+# Validate and inspect a baseline file
+ai-sec-scan baseline check .ai-sec-scan-baseline.json
+
+# Scan with baseline -- known findings are suppressed
+ai-sec-scan scan ./src --baseline .ai-sec-scan-baseline.json
+```
+
 ## CLI Reference
 
 ```
