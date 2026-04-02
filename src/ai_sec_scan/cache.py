@@ -159,6 +159,29 @@ class ResultCache:
 
         return evicted
 
+    def entries(self) -> list[dict[str, Any]]:
+        """Return metadata for all cache entries.
+
+        Each dict contains ``file_path``, ``provider``, ``model``,
+        ``timestamp``, and ``num_findings``.
+        """
+        result: list[dict[str, Any]] = []
+        for entry_path in sorted(self._dir.glob("*.json")):
+            try:
+                data = json.loads(entry_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            if not isinstance(data, dict):
+                continue
+            result.append({
+                "file_path": data.get("file_path", "unknown"),
+                "provider": data.get("provider", "unknown"),
+                "model": data.get("model", "unknown"),
+                "timestamp": data.get("timestamp"),
+                "num_findings": len(data.get("findings", [])),
+            })
+        return result
+
     def stats(self) -> dict[str, Any]:
         """Return cache statistics.
 

@@ -373,6 +373,57 @@ class TestCacheStatsCommand:
         assert "2" in result.output  # 2 entries
 
 
+class TestCacheListCommand:
+    def test_list_empty_cache(self, tmp_path: Path) -> None:
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main, ["cache", "list", "--cache-dir", str(cache_dir)]
+        )
+
+        assert result.exit_code == 0
+        assert "empty" in result.output.lower()
+
+    def test_list_with_entries(self, tmp_path: Path) -> None:
+        import json
+        import time
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        entry = {
+            "version": 1,
+            "file_path": "views.py",
+            "content_hash": "abc123",
+            "provider": "anthropic",
+            "model": "claude-3",
+            "timestamp": time.time(),
+            "findings": [
+                {
+                    "file_path": "views.py",
+                    "line_start": 1,
+                    "severity": "high",
+                    "title": "Issue",
+                    "description": "d",
+                    "recommendation": "r",
+                }
+            ],
+        }
+        (cache_dir / "entry1.json").write_text(json.dumps(entry))
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main, ["cache", "list", "--cache-dir", str(cache_dir)]
+        )
+
+        assert result.exit_code == 0
+        assert "views.py" in result.output
+        assert "1 finding" in result.output
+        assert "1 cached entry" in result.output
+
+
 class TestCacheEvictCommand:
     def test_evict_removes_expired(self, tmp_path: Path) -> None:
         """cache evict should remove expired entries."""

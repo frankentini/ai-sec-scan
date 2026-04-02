@@ -155,6 +155,24 @@ class TestResultCache:
     def test_len_empty(self, cache: ResultCache) -> None:
         assert len(cache) == 0
 
+    def test_entries_empty(self, cache: ResultCache) -> None:
+        assert cache.entries() == []
+
+    def test_entries_returns_metadata(
+        self, cache: ResultCache, sample_finding: Finding
+    ) -> None:
+        cache.put("a.py", "h1", "anthropic", "claude-3", [sample_finding])
+        cache.put("b.py", "h2", "openai", "gpt-4", [])
+        items = cache.entries()
+        assert len(items) == 2
+        paths = {e["file_path"] for e in items}
+        assert paths == {"a.py", "b.py"}
+        for item in items:
+            assert "provider" in item
+            assert "model" in item
+            assert "timestamp" in item
+            assert "num_findings" in item
+
     def test_len_with_entries(
         self, cache: ResultCache, sample_finding: Finding
     ) -> None:

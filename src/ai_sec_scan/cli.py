@@ -528,6 +528,45 @@ def baseline_check(baseline_file: str) -> None:
             console.print(f"  [dim]{fp}[/dim]  {title}{cwe_label}  [dim]{file_path}[/dim]")
 
 
+@cache.command("list")
+@click.option(
+    "--cache-dir",
+    default=None,
+    type=click.Path(),
+    help="Cache directory (default: .ai-sec-scan-cache).",
+)
+def cache_list(cache_dir: str | None) -> None:
+    """List all cached scan entries."""
+    from ai_sec_scan.cache import ResultCache
+
+    rc = ResultCache(cache_dir=Path(cache_dir) if cache_dir else None)
+    items = rc.entries()
+
+    if not items:
+        console.print("[dim]Cache is empty.[/dim]")
+        return
+
+    import datetime
+
+    for item in items:
+        ts = item.get("timestamp")
+        if isinstance(ts, (int, float)):
+            dt = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
+            ts_str = dt.strftime("%Y-%m-%d %H:%M")
+        else:
+            ts_str = "unknown"
+        n = item["num_findings"]
+        findings_label = f"{n} finding{'s' if n != 1 else ''}"
+        console.print(
+            f"  {item['file_path']}  "
+            f"[dim]{item['provider']}/{item['model']}[/dim]  "
+            f"{findings_label}  "
+            f"[dim]{ts_str}[/dim]"
+        )
+
+    console.print(f"\n[green]{len(items)} cached entry(ies).[/green]")
+
+
 @cache.command("evict")
 @click.option(
     "--cache-dir",
