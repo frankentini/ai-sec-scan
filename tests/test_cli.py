@@ -332,6 +332,112 @@ class TestBaselineFlag:
         assert output["findings"][0]["title"] == "XSS"
 
 
+class TestNoFailFlag:
+    def test_no_fail_exits_zero_with_findings(self, monkeypatch, tmp_path: Path) -> None:
+        """--no-fail should exit 0 even when findings are present."""
+        from ai_sec_scan.models import Finding, Severity
+
+        finding = Finding(
+            file_path="app.py",
+            line_start=10,
+            severity=Severity.HIGH,
+            title="Hardcoded Secret",
+            description="API key in source",
+            recommendation="Use environment variables",
+        )
+
+        def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+            return _DummyProvider()
+
+        def fake_run_scan_sync(
+            path,
+            provider,
+            include=None,
+            exclude=None,
+            max_file_size_kb=100,
+            min_severity=None,
+            quiet=False,
+            cache_dir=None,
+            no_cache=False,
+            parallel=1,
+        ):
+            return ScanResult(
+                findings=[finding],
+                files_scanned=1,
+                scan_duration=0.01,
+                provider=provider.name,
+                model=provider.model,
+            )
+
+        monkeypatch.setattr("ai_sec_scan.cli._get_provider", fake_get_provider)
+        monkeypatch.setattr("ai_sec_scan.scanner.run_scan_sync", fake_run_scan_sync)
+
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            project_dir = Path("project")
+            project_dir.mkdir()
+            (project_dir / "app.py").write_text("print('ok')", encoding="utf-8")
+
+            result = runner.invoke(
+                main,
+                ["scan", "project", "-o", "json", "-q", "--no-fail"],
+            )
+
+        assert result.exit_code == 0
+
+    def test_without_no_fail_exits_nonzero(self, monkeypatch, tmp_path: Path) -> None:
+        """Without --no-fail, findings should produce exit code 1."""
+        from ai_sec_scan.models import Finding, Severity
+
+        finding = Finding(
+            file_path="app.py",
+            line_start=10,
+            severity=Severity.LOW,
+            title="Debug Mode Enabled",
+            description="debug=True in production",
+            recommendation="Disable debug mode",
+        )
+
+        def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+            return _DummyProvider()
+
+        def fake_run_scan_sync(
+            path,
+            provider,
+            include=None,
+            exclude=None,
+            max_file_size_kb=100,
+            min_severity=None,
+            quiet=False,
+            cache_dir=None,
+            no_cache=False,
+            parallel=1,
+        ):
+            return ScanResult(
+                findings=[finding],
+                files_scanned=1,
+                scan_duration=0.01,
+                provider=provider.name,
+                model=provider.model,
+            )
+
+        monkeypatch.setattr("ai_sec_scan.cli._get_provider", fake_get_provider)
+        monkeypatch.setattr("ai_sec_scan.scanner.run_scan_sync", fake_run_scan_sync)
+
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            project_dir = Path("project")
+            project_dir.mkdir()
+            (project_dir / "app.py").write_text("print('ok')", encoding="utf-8")
+
+            result = runner.invoke(
+                main,
+                ["scan", "project", "-o", "json", "-q"],
+            )
+
+        assert result.exit_code == 1
+
+
 class TestCacheStatsCommand:
     def test_stats_empty_cache(self, tmp_path: Path) -> None:
         cache_dir = tmp_path / "cache"

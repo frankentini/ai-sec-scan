@@ -50,6 +50,7 @@ _CONFIG_KEY_MAP = {
     "no_cache": "no_cache",
     "parallel": "parallel",
     "baseline": "baseline",
+    "no_fail": "no_fail",
 }
 
 
@@ -257,6 +258,12 @@ def version() -> None:
     type=click.Path(exists=True),
     help="Baseline file to suppress known findings.",
 )
+@click.option(
+    "--no-fail",
+    is_flag=True,
+    default=False,
+    help="Always exit 0 even when findings are present.",
+)
 def scan(
     path: str,
     provider: str,
@@ -274,6 +281,7 @@ def scan(
     no_cache: bool,
     parallel: int,
     baseline: str | None,
+    no_fail: bool,
 ) -> None:
     """Scan a file or directory for security vulnerabilities."""
     from ai_sec_scan.scanner import collect_files, run_scan_sync
@@ -361,8 +369,8 @@ def scan(
         if annotations_output:
             click.echo(annotations_output)
 
-    # Exit with non-zero if findings exist
-    if result.findings:
+    # Exit with non-zero if findings exist (unless --no-fail)
+    if result.findings and not no_fail:
         sys.exit(1)
 
 
