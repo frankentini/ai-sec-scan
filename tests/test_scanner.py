@@ -206,3 +206,43 @@ class TestScan:
             scan(tmp_path, provider, quiet=True, parallel=2, min_severity="high")
         )
         assert result.findings == []
+
+
+class TestScanTimeout:
+    def test_timeout_stops_early(self, tmp_path: Path) -> None:
+        """When timeout is very short the scan returns partial results."""
+        import time as _time
+
+        from ai_sec_scan.providers.base import BaseProvider as _BaseProvider
+
+        class SlowProvider(_BaseProvider):
+            """Provider that sleeps to simulate slow analysis."""
+
+            def __init__(self) -> None:
+                super().__init__(model="slow-model")
+
+            @property
+            def name(self) -> str:
+                return "slow"
+
+            async def analyze(self, code: str, filename: str) -> list[Finding]:
+                await asyncio.sleep(0.3)
+                return []
+
+        for i in range(10):
+            (tmp_path / f"mod{i}.py").write_text(f"x = {i}")
+
+        provider = SlowProvider()
+        # timeout shorter than needed to scan all 10 files at 0.3s each
+        result = asyncio.run(
+            scan(tmp_path, provider, quiet=True, timeout=0.5)
+        )
+        # Should have scanned fewer than all 10 files
+        assert result.files_scanned < 10
+
+    def test_no_timeout_scans_everything(self, tmp_path: Path) -> None:
+        provider = MockProvider()
+        for i in range(5):
+            (tmp_path / f"f{i}.py").write_text(f"x = {i}")
+        result = asyncio.run(scan(tmp_path, provider, quiet=True, timeout=None))
+        assert result.files_scanned == 5

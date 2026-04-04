@@ -145,6 +145,7 @@ async def scan(
     cache_dir: Path | None = None,
     no_cache: bool = False,
     parallel: int = 1,
+    timeout: float | None = None,
 ) -> ScanResult:
     """Run a security scan on a file or directory.
 
@@ -161,6 +162,9 @@ async def scan(
         parallel: Maximum number of files to analyze concurrently. Defaults
             to ``1`` (sequential). Values above 1 enable parallel analysis
             using an ``asyncio.Semaphore``.
+        timeout: Maximum wall-clock seconds for the entire scan. When
+            exceeded the scan stops early and returns partial results.
+            ``None`` means no limit.
 
     Returns:
         ScanResult with all findings.
@@ -182,15 +186,23 @@ async def scan(
     concurrency = max(1, parallel)
 
     all_findings: list[Finding] = []
+    files_analyzed = 0
     start_time = time.monotonic()
+    deadline = (start_time + timeout) if timeout else None
+
+    def _timed_out() -> bool:
+        return deadline is not None and time.monotonic() >= deadline
 
     if concurrency == 1:
         # Sequential path (original behaviour)
         if quiet:
             for fp in files:
+                if _timed_out():
+                    break
                 rel_path = str(fp.relative_to(path)) if path.is_dir() else fp.name
                 findings = await _analyze_file(fp, rel_path, provider, cache)
                 all_findings.extend(findings)
+                files_analyzed += 1
         else:
             with Progress(
                 SpinnerColumn(),
@@ -200,13 +212,22 @@ async def scan(
                 task = progress.add_task("Scanning...", total=len(files))
 
                 for fp in files:
+                    if _timed_out():
+                        break
                     rel_path = str(fp.relative_to(path)) if path.is_dir() else fp.name
                     progress.update(task, description=f"Scanning {rel_path}")
 
                     findings = await _analyze_file(fp, rel_path, provider, cache)
                     all_findings.extend(findings)
+                    files_analyzed += 1
 
                     progress.advance(task)
+
+            if _timed_out() and not quiet:
+                console.print(
+                    f"[yellow]Timeout reached after {timeout}s — "
+                    f"scanned {files_analyzed}/{len(files)} file(s).[/yellow]"
+                )
     else:
         # Parallel path
         semaphore = asyncio.Semaphore(concurrency)
@@ -227,12 +248,22 @@ async def scan(
             progress_ctx.start()
             task_id = progress_ctx.add_task("Scanning...", total=len(files))
 
+        timed_out_flag = False
+
         async def _process(fp: Path) -> None:
+            nonlocal timed_out_flag, files_analyzed
+            if timed_out_flag or _timed_out():
+                timed_out_flag = True
+                return
             rel_path = str(fp.relative_to(path)) if path.is_dir() else fp.name
             async with semaphore:
+                if _timed_out():
+                    timed_out_flag = True
+                    return
                 findings = await _analyze_file(fp, rel_path, provider, cache)
             async with results_lock:
                 all_findings.extend(findings)
+                files_analyzed += 1
             if progress_ctx is not None and task_id is not None:
                 progress_ctx.advance(task_id)
 
@@ -245,7 +276,7 @@ async def scan(
 
     result = ScanResult(
         findings=all_findings,
-        files_scanned=len(files),
+        files_scanned=files_analyzed,
         scan_duration=round(duration, 2),
         provider=provider.name,
         model=provider.model,
@@ -269,11 +300,12 @@ def run_scan_sync(
     cache_dir: Path | None = None,
     no_cache: bool = False,
     parallel: int = 1,
+    timeout: float | None = None,
 ) -> ScanResult:
     """Synchronous wrapper for the async scan function."""
     return asyncio.run(
         scan(
             path, provider, include, exclude, max_file_size_kb,
-            min_severity, quiet, cache_dir, no_cache, parallel,
+            min_severity, quiet, cache_dir, no_cache, parallel, timeout,
         )
     )

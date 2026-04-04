@@ -51,6 +51,7 @@ _CONFIG_KEY_MAP = {
     "parallel": "parallel",
     "baseline": "baseline",
     "no_fail": "no_fail",
+    "timeout": "timeout",
 }
 
 
@@ -264,6 +265,12 @@ def version() -> None:
     default=False,
     help="Always exit 0 even when findings are present.",
 )
+@click.option(
+    "--timeout",
+    default=None,
+    type=float,
+    help="Maximum scan duration in seconds. Partial results are returned on timeout.",
+)
 def scan(
     path: str,
     provider: str,
@@ -282,6 +289,7 @@ def scan(
     parallel: int,
     baseline: str | None,
     no_fail: bool,
+    timeout: float | None,
 ) -> None:
     """Scan a file or directory for security vulnerabilities."""
     from ai_sec_scan.scanner import collect_files, run_scan_sync
@@ -330,6 +338,7 @@ def scan(
         cache_dir=Path(cache_dir) if cache_dir else None,
         no_cache=no_cache,
         parallel=parallel,
+        timeout=timeout,
     )
 
     # Apply baseline suppression
