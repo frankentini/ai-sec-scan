@@ -478,6 +478,53 @@ class TestCacheStatsCommand:
         assert result.exit_code == 0
         assert "2" in result.output  # 2 entries
 
+    def test_stats_json_output_empty(self, tmp_path: Path) -> None:
+        """--json on an empty cache should return valid JSON with zero entries."""
+        import json
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main, ["cache", "stats", "--cache-dir", str(cache_dir), "--json"]
+        )
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["total_entries"] == 0
+        assert data["total_bytes"] == 0
+
+    def test_stats_json_output_with_entries(self, tmp_path: Path) -> None:
+        """--json should return structured cache stats."""
+        import json
+        import time
+
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+
+        entry = {
+            "version": 1,
+            "file_path": "app.py",
+            "content_hash": "abc123",
+            "provider": "anthropic",
+            "model": "claude-3",
+            "timestamp": time.time(),
+            "findings": [],
+        }
+        (cache_dir / "entry1.json").write_text(json.dumps(entry))
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main, ["cache", "stats", "--cache-dir", str(cache_dir), "--json"]
+        )
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["total_entries"] == 1
+        assert data["total_bytes"] > 0
+        assert data["oldest_timestamp"] is not None
+
 
 class TestCacheListCommand:
     def test_list_empty_cache(self, tmp_path: Path) -> None:

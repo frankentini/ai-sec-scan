@@ -395,12 +395,23 @@ def cache() -> None:
     type=click.Path(),
     help="Cache directory (default: .ai-sec-scan-cache).",
 )
-def cache_stats(cache_dir: str | None) -> None:
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output stats as JSON for scripting.",
+)
+def cache_stats(cache_dir: str | None, output_json: bool) -> None:
     """Show cache statistics."""
     from ai_sec_scan.cache import ResultCache
 
     rc = ResultCache(cache_dir=Path(cache_dir) if cache_dir else None)
     info = rc.stats()
+
+    if output_json:
+        click.echo(json.dumps(info, indent=2))
+        return
 
     if info["total_entries"] == 0:
         console.print("[dim]Cache is empty.[/dim]")
