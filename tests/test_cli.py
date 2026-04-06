@@ -47,6 +47,7 @@ def test_scan_loads_defaults_from_target_config(  # type: ignore[no-untyped-def]
         cache_dir: Path | None = None,
         no_cache: bool = False,
         parallel: int = 1,
+        timeout: float | None = None,
     ) -> ScanResult:
         captured["include"] = include
         captured["exclude"] = exclude
@@ -152,6 +153,7 @@ def test_quiet_flag_suppresses_progress(monkeypatch) -> None:  # type: ignore[no
         cache_dir: Path | None = None,
         no_cache: bool = False,
         parallel: int = 1,
+        timeout: float | None = None,
     ) -> ScanResult:
         captured["quiet"] = quiet
         return ScanResult(
@@ -198,6 +200,7 @@ def test_cli_flags_override_config(monkeypatch) -> None:  # type: ignore[no-unty
         cache_dir: Path | None = None,
         no_cache: bool = False,
         parallel: int = 1,
+        timeout: float | None = None,
     ) -> ScanResult:
         captured["include"] = include
         captured["max_file_size_kb"] = max_file_size_kb
@@ -302,6 +305,7 @@ class TestBaselineFlag:
             cache_dir=None,
             no_cache=False,
             parallel=1,
+            timeout=None,
         ):
             return ScanResult(
                 findings=[finding_suppressed, finding_kept],
@@ -360,6 +364,7 @@ class TestNoFailFlag:
             cache_dir=None,
             no_cache=False,
             parallel=1,
+            timeout=None,
         ):
             return ScanResult(
                 findings=[finding],
@@ -412,6 +417,7 @@ class TestNoFailFlag:
             cache_dir=None,
             no_cache=False,
             parallel=1,
+            timeout=None,
         ):
             return ScanResult(
                 findings=[finding],
