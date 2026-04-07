@@ -383,6 +383,85 @@ def scan(
         sys.exit(1)
 
 
+@main.command()
+@click.argument("path", type=click.Path(exists=True))
+@click.option(
+    "-p", "--provider",
+    type=click.Choice(["anthropic", "openai"]),
+    default="anthropic",
+    show_default=True,
+    help="LLM provider to use.",
+)
+@click.option("-m", "--model", default=None, help="Model name override.")
+@click.option(
+    "--max-file-size", default=100, type=int, show_default=True,
+    help="Max file size in KB.",
+)
+@click.option("-i", "--include", multiple=True, help="Glob patterns to include (repeatable).")
+@click.option("-e", "--exclude", multiple=True, help="Glob patterns to exclude (repeatable).")
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output estimate as JSON for scripting.",
+)
+def estimate(
+    path: str,
+    provider: str,
+    model: str | None,
+    max_file_size: int,
+    include: tuple[str, ...],
+    exclude: tuple[str, ...],
+    output_json: bool,
+) -> None:
+    """Estimate token count and cost before scanning.
+
+    Shows how many files would be scanned, the approximate token usage,
+    and the projected API cost so you can decide before committing to a
+    full scan.
+    """
+    from ai_sec_scan.cost import estimate_scan_cost
+
+    target = Path(path)
+
+    # Resolve the model name the same way the scan command does.
+    try:
+        llm_provider = _get_provider(provider, model)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
+
+    result = estimate_scan_cost(
+        target,
+        model=llm_provider.model,
+        include=list(include) if include else None,
+        exclude=list(exclude) if exclude else None,
+        max_file_size_kb=max_file_size,
+    )
+
+    if output_json:
+        import json as _json
+
+        data = {
+            "file_count": result.file_count,
+            "total_input_tokens": result.total_input_tokens,
+            "estimated_output_tokens": result.estimated_output_tokens,
+            "total_tokens": result.total_tokens,
+            "model": result.model,
+            "input_cost_usd": result.input_cost_usd,
+            "output_cost_usd": result.output_cost_usd,
+            "total_cost_usd": result.total_cost_usd,
+        }
+        click.echo(_json.dumps(data, indent=2))
+        return
+
+    console.print(f"[bold]ai-sec-scan[/bold] v{__version__} | cost estimate")
+    console.print(f"Target: {target.resolve()}")
+    console.print(f"Model:  {result.model}\n")
+    console.print(result.summary())
+
+
 @main.group()
 def cache() -> None:
     """Manage the scan result cache."""
