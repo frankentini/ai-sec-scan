@@ -24,11 +24,18 @@ _PRICING: dict[str, tuple[float, float]] = {
     "claude-3-5-sonnet-20241022": (3.00, 15.00),
     "claude-3-haiku-20240307": (0.25, 1.25),
     "claude-3-opus-20240229": (15.00, 75.00),
+    "claude-4-opus-20260301": (15.00, 75.00),
+    "claude-4-sonnet-20260115": (3.00, 15.00),
+    "claude-3-5-haiku-20241022": (1.00, 5.00),
     # OpenAI
     "gpt-4o": (2.50, 10.00),
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-4-turbo": (10.00, 30.00),
     "gpt-3.5-turbo": (0.50, 1.50),
+    "gpt-4.1": (2.00, 8.00),
+    "gpt-4.1-mini": (0.40, 1.60),
+    "gpt-4.1-nano": (0.10, 0.40),
+    "o3-mini": (1.10, 4.40),
 }
 
 # Estimated output tokens as a fraction of input tokens.
