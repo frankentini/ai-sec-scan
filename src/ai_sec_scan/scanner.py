@@ -29,6 +29,17 @@ DEFAULT_EXCLUDES = [
     "*.egg-info",
     ".tox",
     ".nox",
+    ".next",
+    ".nuxt",
+    ".gradle",
+    ".cargo",
+    "target",
+    "vendor",
+    "coverage",
+    "htmlcov",
+    ".terraform",
+    ".idea",
+    ".vscode",
 ]
 
 SOURCE_EXTENSIONS = {
