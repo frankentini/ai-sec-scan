@@ -92,6 +92,20 @@ class ScanResult(BaseModel):
         return grouped
 
     @property
+    def severity_counts(self) -> dict[str, int]:
+        """Count findings per severity level.
+
+        Returns a dict mapping severity names to their count,
+        including only severities that have at least one finding.
+        Useful for quick programmatic summaries and CI checks.
+        """
+        counts: dict[str, int] = {}
+        for finding in self.findings:
+            key = finding.severity.value
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    @property
     def sorted_findings(self) -> list[Finding]:
         """Findings sorted by severity (most severe first)."""
         return sorted(self.findings, key=lambda f: f.severity.rank, reverse=True)

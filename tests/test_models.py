@@ -191,3 +191,59 @@ class TestScanResult:
         assert data["files_scanned"] == 3
         assert len(data["findings"]) == 3
         assert data["provider"] == "test"
+
+    def test_severity_counts(self, sample_result: ScanResult) -> None:
+        counts = sample_result.severity_counts
+        assert counts == {"critical": 1, "low": 2}
+
+    def test_severity_counts_empty(self) -> None:
+        r = ScanResult(
+            findings=[],
+            files_scanned=0,
+            scan_duration=0.0,
+            provider="test",
+            model="test",
+        )
+        assert r.severity_counts == {}
+
+    def test_severity_counts_all_same(self) -> None:
+        findings = [
+            Finding(
+                file_path="x.py",
+                line_start=i,
+                severity=Severity.MEDIUM,
+                title=f"Issue {i}",
+                description="desc",
+                recommendation="fix",
+            )
+            for i in range(1, 4)
+        ]
+        r = ScanResult(
+            findings=findings,
+            files_scanned=1,
+            scan_duration=0.5,
+            provider="test",
+            model="test",
+        )
+        assert r.severity_counts == {"medium": 3}
+
+    def test_str_single_finding(self) -> None:
+        r = ScanResult(
+            findings=[
+                Finding(
+                    file_path="a.py",
+                    line_start=1,
+                    severity=Severity.HIGH,
+                    title="Issue",
+                    description="desc",
+                    recommendation="fix",
+                )
+            ],
+            files_scanned=1,
+            scan_duration=0.3,
+            provider="test",
+            model="test-model",
+        )
+        s = str(r)
+        assert "1 finding" in s
+        assert "findings" not in s  # singular
