@@ -32,6 +32,7 @@ _LONG_OPTIONS_WITH_VALUE = {
     "--max-file-size",
     "--include",
     "--exclude",
+    "--rules-file",
 }
 _SHORT_OPTIONS_WITH_VALUE = {"-p", "-m", "-o", "-s", "-f", "-i", "-e"}
 _CONFIG_KEY_MAP = {
@@ -52,19 +53,32 @@ _CONFIG_KEY_MAP = {
     "baseline": "baseline",
     "no_fail": "no_fail",
     "timeout": "timeout",
+    "rules_file": "rules_file",
 }
 
 
-def _get_provider(provider_name: str, model: str | None) -> BaseProvider:
-    """Instantiate the requested LLM provider."""
+def _get_provider(
+    provider_name: str,
+    model: str | None,
+    system_prompt: str | None = None,
+) -> BaseProvider:
+    """Instantiate the requested LLM provider.
+
+    Args:
+        provider_name: One of ``"anthropic"`` or ``"openai"``.
+        model: Optional model override.
+        system_prompt: Optional custom analysis prompt loaded from a rules
+            file.  When ``None`` the provider falls back to the built-in
+            default prompt.
+    """
     if provider_name == "anthropic":
         from ai_sec_scan.providers.anthropic import AnthropicProvider
 
-        return AnthropicProvider(model=model)
+        return AnthropicProvider(model=model, system_prompt=system_prompt)
     elif provider_name == "openai":
         from ai_sec_scan.providers.openai import OpenAIProvider
 
-        return OpenAIProvider(model=model)
+        return OpenAIProvider(model=model, system_prompt=system_prompt)
     else:
         console.print(f"[red]Unknown provider: {provider_name}[/red]")
         sys.exit(1)
@@ -271,6 +285,12 @@ def version() -> None:
     type=float,
     help="Maximum scan duration in seconds. Partial results are returned on timeout.",
 )
+@click.option(
+    "--rules-file",
+    default=None,
+    type=click.Path(exists=True),
+    help="Path to a custom rules/prompt file. Overrides the built-in analysis prompt.",
+)
 def scan(
     path: str,
     provider: str,
@@ -290,6 +310,7 @@ def scan(
     baseline: str | None,
     no_fail: bool,
     timeout: float | None,
+    rules_file: str | None,
 ) -> None:
     """Scan a file or directory for security vulnerabilities."""
     from ai_sec_scan.scanner import collect_files, run_scan_sync
@@ -314,16 +335,25 @@ def scan(
             console.print("[yellow]No files match the current filters.[/yellow]")
         return
 
+    custom_prompt: str | None = None
+    if rules_file:
+        try:
+            custom_prompt = Path(rules_file).read_text(encoding="utf-8")
+        except OSError as e:
+            console.print(f"[red]Cannot read rules file: {e}[/red]")
+            sys.exit(1)
+
     try:
-        llm_provider = _get_provider(provider, model)
+        llm_provider = _get_provider(provider, model, system_prompt=custom_prompt)
     except ValueError as e:
         console.print(f"[red]{e}[/red]")
         sys.exit(1)
 
     if not quiet:
+        rules_note = f" | rules: {rules_file}" if rules_file else ""
         console.print(
             f"[bold]ai-sec-scan[/bold] v{__version__} | "
-            f"provider: {llm_provider.name} | model: {llm_provider.model}"
+            f"provider: {llm_provider.name} | model: {llm_provider.model}{rules_note}"
         )
         console.print(f"Scanning: {target.resolve()}\n")
 

@@ -31,7 +31,7 @@ def test_scan_loads_defaults_from_target_config(  # type: ignore[no-untyped-def]
     runner = CliRunner()
     captured: dict[str, object] = {}
 
-    def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+    def fake_get_provider(provider_name: str, model: str | None, system_prompt: str | None = None) -> BaseProvider:
         captured["provider_name"] = provider_name
         captured["model"] = model
         return _DummyProvider()
@@ -139,7 +139,7 @@ def test_quiet_flag_suppresses_progress(monkeypatch) -> None:  # type: ignore[no
     runner = CliRunner()
     captured: dict[str, object] = {}
 
-    def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+    def fake_get_provider(provider_name: str, model: str | None, system_prompt: str | None = None) -> BaseProvider:
         return _DummyProvider()
 
     def fake_run_scan_sync(  # type: ignore[no-untyped-def]
@@ -184,7 +184,7 @@ def test_cli_flags_override_config(monkeypatch) -> None:  # type: ignore[no-unty
     runner = CliRunner()
     captured: dict[str, object] = {}
 
-    def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+    def fake_get_provider(provider_name: str, model: str | None, system_prompt: str | None = None) -> BaseProvider:
         captured["provider_name"] = provider_name
         captured["model"] = model
         return _DummyProvider()
@@ -291,7 +291,7 @@ class TestBaselineFlag:
         import json
         baseline_path.write_text(json.dumps(baseline_doc))
 
-        def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+        def fake_get_provider(provider_name: str, model: str | None, system_prompt: str | None = None) -> BaseProvider:
             return _DummyProvider()
 
         def fake_run_scan_sync(
@@ -350,7 +350,7 @@ class TestNoFailFlag:
             recommendation="Use environment variables",
         )
 
-        def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+        def fake_get_provider(provider_name: str, model: str | None, system_prompt: str | None = None) -> BaseProvider:
             return _DummyProvider()
 
         def fake_run_scan_sync(
@@ -403,7 +403,7 @@ class TestNoFailFlag:
             recommendation="Disable debug mode",
         )
 
-        def fake_get_provider(provider_name: str, model: str | None) -> BaseProvider:
+        def fake_get_provider(provider_name: str, model: str | None, system_prompt: str | None = None) -> BaseProvider:
             return _DummyProvider()
 
         def fake_run_scan_sync(

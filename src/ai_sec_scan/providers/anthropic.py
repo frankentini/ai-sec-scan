@@ -9,7 +9,6 @@ import anthropic
 
 from ai_sec_scan.models import Finding
 from ai_sec_scan.providers.base import BaseProvider
-from ai_sec_scan.rules import ANALYSIS_PROMPT, build_prompt
 
 
 class AnthropicProvider(BaseProvider):
@@ -17,8 +16,8 @@ class AnthropicProvider(BaseProvider):
 
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
-    def __init__(self, model: str | None = None) -> None:
-        super().__init__(model or self.DEFAULT_MODEL)
+    def __init__(self, model: str | None = None, system_prompt: str | None = None) -> None:
+        super().__init__(model or self.DEFAULT_MODEL, system_prompt=system_prompt)
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError(
@@ -37,7 +36,7 @@ class AnthropicProvider(BaseProvider):
             model=self.model,
             max_tokens=4096,
             temperature=0,
-            system=ANALYSIS_PROMPT,
+            system=self.system_prompt,
             messages=[
                 {
                     "role": "user",

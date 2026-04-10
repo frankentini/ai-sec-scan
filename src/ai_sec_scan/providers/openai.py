@@ -10,7 +10,6 @@ import openai
 
 from ai_sec_scan.models import Finding
 from ai_sec_scan.providers.base import BaseProvider
-from ai_sec_scan.rules import ANALYSIS_PROMPT
 
 
 class OpenAIProvider(BaseProvider):
@@ -18,8 +17,8 @@ class OpenAIProvider(BaseProvider):
 
     DEFAULT_MODEL = "gpt-4o"
 
-    def __init__(self, model: str | None = None) -> None:
-        super().__init__(model or self.DEFAULT_MODEL)
+    def __init__(self, model: str | None = None, system_prompt: str | None = None) -> None:
+        super().__init__(model or self.DEFAULT_MODEL, system_prompt=system_prompt)
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
             raise ValueError(
@@ -39,7 +38,7 @@ class OpenAIProvider(BaseProvider):
             temperature=0,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": ANALYSIS_PROMPT},
+                {"role": "system", "content": self.system_prompt},
                 {
                     "role": "user",
                     "content": f"Filename: {filename}\n\n```\n{code}\n```",
