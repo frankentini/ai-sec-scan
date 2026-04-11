@@ -79,6 +79,10 @@ def _get_provider(
         from ai_sec_scan.providers.openai import OpenAIProvider
 
         return OpenAIProvider(model=model, system_prompt=system_prompt)
+    elif provider_name == "gemini":
+        from ai_sec_scan.providers.gemini import GeminiProvider
+
+        return GeminiProvider(model=model, system_prompt=system_prompt)
     else:
         console.print(f"[red]Unknown provider: {provider_name}[/red]")
         sys.exit(1)
@@ -203,7 +207,7 @@ def version() -> None:
 @click.argument("path", type=click.Path(exists=True))
 @click.option(
     "-p", "--provider",
-    type=click.Choice(["anthropic", "openai"]),
+    type=click.Choice(["anthropic", "openai", "gemini"]),
     default="anthropic",
     show_default=True,
     help="LLM provider to use.",
@@ -417,7 +421,7 @@ def scan(
 @click.argument("path", type=click.Path(exists=True))
 @click.option(
     "-p", "--provider",
-    type=click.Choice(["anthropic", "openai"]),
+    type=click.Choice(["anthropic", "openai", "gemini"]),
     default="anthropic",
     show_default=True,
     help="LLM provider to use.",
