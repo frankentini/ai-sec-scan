@@ -11,7 +11,9 @@ from ai_sec_scan.cli import main
 from ai_sec_scan.rules import (
     ANALYSIS_PROMPT,
     DJANGO_PROMPT,
+    EXPRESS_PROMPT,
     FASTAPI_PROMPT,
+    SPRING_PROMPT,
     get_pack_prompt,
     list_packs,
 )
@@ -22,10 +24,12 @@ class TestListPacks:
         packs = list_packs()
         assert isinstance(packs, list)
 
-    def test_contains_django_and_fastapi(self) -> None:
+    def test_contains_all_framework_packs(self) -> None:
         names = {p["name"] for p in list_packs()}
         assert "django" in names
+        assert "express" in names
         assert "fastapi" in names
+        assert "spring" in names
 
     def test_each_pack_has_required_keys(self) -> None:
         for p in list_packs():
@@ -51,6 +55,14 @@ class TestGetPackPrompt:
         prompt = get_pack_prompt("fastapi")
         assert prompt == FASTAPI_PROMPT
 
+    def test_express_prompt_returned(self) -> None:
+        prompt = get_pack_prompt("express")
+        assert prompt == EXPRESS_PROMPT
+
+    def test_spring_prompt_returned(self) -> None:
+        prompt = get_pack_prompt("spring")
+        assert prompt == SPRING_PROMPT
+
     def test_unknown_pack_returns_none(self) -> None:
         assert get_pack_prompt("rails") is None
         assert get_pack_prompt("") is None
@@ -59,9 +71,13 @@ class TestGetPackPrompt:
     def test_pack_prompt_differs_from_default(self) -> None:
         django_prompt = get_pack_prompt("django")
         fastapi_prompt = get_pack_prompt("fastapi")
-        assert django_prompt != ANALYSIS_PROMPT
-        assert fastapi_prompt != ANALYSIS_PROMPT
-        assert django_prompt != fastapi_prompt
+        express_prompt = get_pack_prompt("express")
+        spring_prompt = get_pack_prompt("spring")
+        prompts = [django_prompt, fastapi_prompt, express_prompt, spring_prompt]
+        for p in prompts:
+            assert p != ANALYSIS_PROMPT
+        # all four prompts are distinct
+        assert len(set(id(p) for p in prompts)) == 4
 
 
 class TestDjangoPrompt:
@@ -92,17 +108,47 @@ class TestFastAPIPrompt:
         assert "cwe_id" in FASTAPI_PROMPT
 
 
+class TestExpressPrompt:
+    def test_contains_express_specific_terms(self) -> None:
+        for term in ("helmet", "Prototype pollution", "CORS", "CSRF", "child_process"):
+            assert term in EXPRESS_PROMPT, f"Expected '{term}' in Express prompt"
+
+    def test_contains_json_format_instructions(self) -> None:
+        assert "JSON array" in EXPRESS_PROMPT
+        assert "line_start" in EXPRESS_PROMPT
+        assert "severity" in EXPRESS_PROMPT
+
+    def test_contains_cwe_instructions(self) -> None:
+        assert "cwe_id" in EXPRESS_PROMPT
+
+
+class TestSpringPrompt:
+    def test_contains_spring_specific_terms(self) -> None:
+        for term in ("SpEL", "actuator", "deserialization", "JdbcTemplate", "@PreAuthorize"):
+            assert term in SPRING_PROMPT, f"Expected '{term}' in Spring prompt"
+
+    def test_contains_json_format_instructions(self) -> None:
+        assert "JSON array" in SPRING_PROMPT
+        assert "line_start" in SPRING_PROMPT
+        assert "severity" in SPRING_PROMPT
+
+    def test_contains_cwe_instructions(self) -> None:
+        assert "cwe_id" in SPRING_PROMPT
+
+
 class TestRulesListPacksCLI:
     def test_list_packs_exits_zero(self) -> None:
         runner = CliRunner()
         result = runner.invoke(main, ["rules", "list-packs"])
         assert result.exit_code == 0
 
-    def test_list_packs_shows_django_and_fastapi(self) -> None:
+    def test_list_packs_shows_all_packs(self) -> None:
         runner = CliRunner()
         result = runner.invoke(main, ["rules", "list-packs"])
         assert "django" in result.output
+        assert "express" in result.output
         assert "fastapi" in result.output
+        assert "spring" in result.output
 
     def test_list_packs_json_output(self) -> None:
         runner = CliRunner()
@@ -112,7 +158,9 @@ class TestRulesListPacksCLI:
         assert isinstance(data, list)
         names = {item["name"] for item in data}
         assert "django" in names
+        assert "express" in names
         assert "fastapi" in names
+        assert "spring" in names
         for item in data:
             assert "name" in item
             assert "description" in item
