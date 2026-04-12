@@ -10,6 +10,7 @@ from typing import Any
 import click
 import yaml
 from rich.console import Console
+from rich.table import Table
 
 from ai_sec_scan import __version__
 from ai_sec_scan.output import (
@@ -33,6 +34,7 @@ _LONG_OPTIONS_WITH_VALUE = {
     "--include",
     "--exclude",
     "--rules-file",
+    "--pack",
 }
 _SHORT_OPTIONS_WITH_VALUE = {"-p", "-m", "-o", "-s", "-f", "-i", "-e"}
 _CONFIG_KEY_MAP = {
@@ -54,6 +56,7 @@ _CONFIG_KEY_MAP = {
     "no_fail": "no_fail",
     "timeout": "timeout",
     "rules_file": "rules_file",
+    "pack": "pack",
 }
 
 
@@ -295,6 +298,13 @@ def version() -> None:
     type=click.Path(exists=True),
     help="Path to a custom rules/prompt file. Overrides the built-in analysis prompt.",
 )
+@click.option(
+    "--pack",
+    default=None,
+    help="Built-in framework rule pack to use (e.g. django, fastapi). "
+         "Run 'ai-sec-scan rules list-packs' to see available packs. "
+         "Ignored when --rules-file is also specified.",
+)
 def scan(
     path: str,
     provider: str,
@@ -315,6 +325,7 @@ def scan(
     no_fail: bool,
     timeout: float | None,
     rules_file: str | None,
+    pack: str | None,
 ) -> None:
     """Scan a file or directory for security vulnerabilities."""
     from ai_sec_scan.scanner import collect_files, run_scan_sync
@@ -345,6 +356,16 @@ def scan(
             custom_prompt = Path(rules_file).read_text(encoding="utf-8")
         except OSError as e:
             console.print(f"[red]Cannot read rules file: {e}[/red]")
+            sys.exit(1)
+    elif pack:
+        from ai_sec_scan.rules import get_pack_prompt
+
+        custom_prompt = get_pack_prompt(pack)
+        if custom_prompt is None:
+            from ai_sec_scan.rules import list_packs
+
+            available = ", ".join(p["name"] for p in list_packs())
+            console.print(f"[red]Unknown rule pack '{pack}'. Available: {available}[/red]")
             sys.exit(1)
 
     try:
@@ -706,6 +727,50 @@ def cache_list(cache_dir: str | None) -> None:
         )
 
     console.print(f"\n[green]{len(items)} cached entry(ies).[/green]")
+
+
+@main.group()
+def rules() -> None:
+    """Manage built-in framework rule packs."""
+
+
+@rules.command("list-packs")
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON for scripting.",
+)
+def rules_list_packs(output_json: bool) -> None:
+    """List all available built-in rule packs.
+
+    Rule packs are framework-specific analysis prompts that focus the scanner
+    on vulnerabilities common to a particular framework. Pass a pack name to
+    the scan command with --pack to activate it.
+    """
+    from ai_sec_scan.rules import list_packs
+
+    packs = list_packs()
+
+    if output_json:
+        data = [{"name": p["name"], "description": p["description"]} for p in packs]
+        click.echo(json.dumps(data, indent=2))
+        return
+
+    if not packs:
+        console.print("[dim]No rule packs available.[/dim]")
+        return
+
+    table = Table(title="Built-in Rule Packs", show_header=True, box=None, padding=(0, 2))
+    table.add_column("Name", style="bold cyan")
+    table.add_column("Description")
+    for p in packs:
+        table.add_row(p["name"], p["description"])
+    console.print(table)
+    console.print(
+        f"\n[dim]Use with: ai-sec-scan scan <path> --pack <name>[/dim]"
+    )
 
 
 @cache.command("evict")
